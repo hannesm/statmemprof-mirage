@@ -46,13 +46,15 @@ let no_sampling f x =
 
 let min_buf_size = 1024
 let empty_ephe = Ephemeron.K1.create ()
-let samples = ref (Array.make min_buf_size empty_ephe)
+let samples : _ array ref = ref (Array.make min_buf_size empty_ephe)
 let n_samples = ref 0
 let samples_lock = Mutex.create ()
+let counter = ref 0
 
 (* Data structure management functions. *)
 
 let clean () =
+  incr counter;
   let s = !samples and sz = !n_samples in
   let rec aux i j =
     if i >= sz then j
@@ -76,11 +78,11 @@ let push e =
 
 (* Our callback. *)
 
-let callback : sample_info Memprof.callback = fun info ->
+let callback : (int * sample_info) Memprof.callback = fun info ->
   if is_disabled_thread (Thread.self ()) then None
   else
     let ephe = Ephemeron.K1.create () in
-    Ephemeron.K1.set_data ephe info;
+    Ephemeron.K1.set_data ephe (!counter, info);
     with_lock samples_lock push ephe;
     Some ephe
 

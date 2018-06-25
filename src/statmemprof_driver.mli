@@ -22,7 +22,7 @@ val no_sampling : ('a -> 'b) -> 'a -> 'b
 val reset : unit -> unit
 
 (** [dump ()] dumps the current set of tracked blocks. *)
-val dump : unit -> Memprof.sample_info list
+val dump : unit -> (int * Memprof.sample_info) list
 
 (** [start sampling_rate callstack_size min_sample_print] starts the
     sampling on the current process.

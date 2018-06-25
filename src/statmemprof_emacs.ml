@@ -8,27 +8,42 @@ open Inuit
 
 (* Reading and printing the set of samples. *)
 
+type time = { min : int; max : int; sum : int; count : int }
+
 type sampleTree =
-    STC of Memprof.sample_info list * int *
+    STC of time option * Memprof.sample_info list * int *
              (raw_backtrace_slot, sampleTree) Hashtbl.t
 
-let add_sampleTree (t:sampleTree) (s:Memprof.sample_info) : sampleTree =
-  let rec aux idx (STC (sl, n, sth)) =
+let add_sampleTree (t:sampleTree) ((s_time, s):(int * Memprof.sample_info)) : sampleTree =
+  let rec aux idx (STC (time, sl, n, sth)) =
+    let time =
+      match time with
+      | None ->
+          { min = s_time;
+            max = s_time;
+            count = 1;
+            sum = s_time }
+      | Some time ->
+          { min = min time.min s_time;
+            max = max time.max s_time;
+            count = time.count + 1;
+            sum = time.sum + s_time }
+    in
     if idx >= Printexc.raw_backtrace_length s.callstack then
-      STC(s::sl, n+s.n_samples, sth)
+      STC(Some time, s::sl, n+s.n_samples, sth)
     else
       let li = Printexc.get_raw_backtrace_slot s.callstack idx in
       let child =
         try Hashtbl.find sth li
-        with Not_found -> STC ([], 0, Hashtbl.create 3)
+        with Not_found -> STC (None, [], 0, Hashtbl.create 3)
       in
       Hashtbl.replace sth li (aux (idx+1) child);
-      STC(sl, n+s.n_samples, sth)
+      STC(Some time, sl, n+s.n_samples, sth)
   in
   aux 0 t
 
 type sortedSampleTree =
-    SSTC of int array * int * (raw_backtrace_slot * sortedSampleTree) list
+    SSTC of time option * int array * int * (raw_backtrace_slot * sortedSampleTree) list
 
 let acc_si si children =
   let acc = Array.make 3 0 in
@@ -41,7 +56,7 @@ let acc_si si children =
     in
     acc.(o) <- acc.(o) + s.Memprof.n_samples;
   ) si;
-  List.iter (fun (_, SSTC (acc',_,_)) ->
+  List.iter (fun (_, SSTC (_time, acc',_,_)) ->
     acc.(0) <- acc.(0) + acc'.(0);
     acc.(1) <- acc.(1) + acc'.(1);
     acc.(2) <- acc.(2) + acc'.(2);
@@ -49,16 +64,16 @@ let acc_si si children =
   acc
 
 let rec sort_sampleTree (t:sampleTree) : sortedSampleTree =
-  let STC (sl, n, sth) = t in
+  let STC (time, sl, n, sth) = t in
   let children =
-    List.sort (fun (_, SSTC (_, n1, _)) (_, SSTC (_, n2, _)) -> n2 - n1)
+    List.sort (fun (_, SSTC (_, _, n1, _)) (_, SSTC (_, _, n2, _)) -> n2 - n1)
       (Hashtbl.fold (fun li st lst -> (li, sort_sampleTree st)::lst) sth [])
   in
-  SSTC (acc_si sl children, n, children)
+  SSTC (time, acc_si sl children, n, children)
 
 let dump_SST () =
   Statmemprof_driver.dump ()
-  |> List.fold_left add_sampleTree (STC ([], 0, Hashtbl.create 3))
+  |> List.fold_left add_sampleTree (STC (None, [], 0, Hashtbl.create 3))
   |> sort_sampleTree
 
 let min_samples = ref 0
@@ -82,27 +97,35 @@ let sturgeon_dump sampling_rate k =
       Cursor.printf k ")"
     end
   in
-  let rec aux root (slot, SSTC (si, n, bt)) =
+  let rec aux root (slot, SSTC (time, si, n, bt)) =
     if n >= !min_samples then (
       let children =
-        if List.exists (fun (_,SSTC(_,n',_)) -> n' >= !min_samples) bt then
+        if List.exists (fun (_,SSTC(_, _,n',_)) -> n' >= !min_samples) bt then
           Some (fun root' -> List.iter (aux root') bt)
         else None
+      in
+      let mean =
+        match time with
+        | None -> "<...>"
+        | Some { min; max; count; sum } ->
+            Printf.sprintf "%i, %i, %0.1f" min max (float sum /. float count)
       in
       let node = Widget.Tree.add ?children root in
       begin match Printexc.Slot.location (convert_raw_backtrace_slot slot) with
       | Some { filename; line_number; start_char; end_char } ->
-        Cursor.printf node "%11.2f MB | %s:%d %d-%d"
-                      (float n /. sampling_rate *. float Sys.word_size /. 8e6)
-                      filename line_number start_char end_char
+        Cursor.printf node "%11.2f MB | %s | %s:%d %d-%d"
+          (float n /. sampling_rate *. float Sys.word_size /. 8e6)
+          mean
+          filename line_number start_char end_char
       | None ->
-        Cursor.printf node "%11.2f MB | ?"
-                      (float n /. sampling_rate *. float Sys.word_size /. 8e6)
+        Cursor.printf node "%11.2f MB | %s | ?"
+          (float n /. sampling_rate *. float Sys.word_size /. 8e6)
+          mean
       end;
       print_acc node si
     )
   in
-  let (SSTC (si, n, bt)) = dump_SST () in
+  let (SSTC (time, si, n, bt)) = dump_SST () in
   let root = Widget.Tree.make k in
   let node = Widget.Tree.add root ~children:(fun root' -> List.iter (aux root') bt) in
   Cursor.printf node "%11.2f MB total "
