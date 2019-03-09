@@ -72,6 +72,7 @@ let rec sort_sampleTree (t:sampleTree) : sortedSampleTree =
   SSTC (time, acc_si sl children, n, children)
 
 let dump_SST () =
+  Gc.full_major ();
   Statmemprof_driver.dump ()
   |> List.fold_left add_sampleTree (STC (None, [], 0, Hashtbl.create 3))
   |> sort_sampleTree
