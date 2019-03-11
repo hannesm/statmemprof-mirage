@@ -16,12 +16,12 @@ available: [ compiler = "4.03.0+statistical-memprof"
            | compiler = "4.07.1+statistical-memprof" ]
 depends:
 [
-  "jbuilder" {build}
+  "dune" {build & >= "1.0"}
   "sturgeon" { >= "0.3" }
   "inuit" { >= "0.3" }
 ]
 depopts: []
 build: [
-  ["jbuilder" "subst" "-n" name] {pinned}
-  ["jbuilder" "build" "-p" name "-j" jobs]
+  ["dune" "subst"] {pinned}
+  ["dune" "build" "-p" name "-j" jobs]
 ]
