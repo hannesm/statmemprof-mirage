@@ -12,10 +12,10 @@ type time = { min : int; max : int; sum : int; count : int }
 
 type sampleTree =
     STC of time option * Memprof.sample_info list * int *
-             (raw_backtrace_slot, sampleTree) Hashtbl.t
+             (backtrace_slot, sampleTree) Hashtbl.t
 
-let add_sampleTree (t:sampleTree) ((s_time, s):(int * Memprof.sample_info)) : sampleTree =
-  let rec aux idx (STC (time, sl, n, sth)) =
+let add_sampleTree (t:sampleTree) ((s_time, (s, bt)):(int * (Memprof.sample_info * Printexc.backtrace_slot array option))) : sampleTree =
+  let rec aux idx (STC (time, sl, n, sth)) arr =
     let time =
       match time with
       | None ->
@@ -32,18 +32,22 @@ let add_sampleTree (t:sampleTree) ((s_time, s):(int * Memprof.sample_info)) : sa
     if idx >= Printexc.raw_backtrace_length s.callstack then
       STC(Some time, s::sl, n+s.n_samples, sth)
     else
-      let li = Printexc.get_raw_backtrace_slot s.callstack idx in
+      let li = Array.get arr idx in
       let child =
         try Hashtbl.find sth li
         with Not_found -> STC (None, [], 0, Hashtbl.create 3)
       in
-      Hashtbl.replace sth li (aux (idx+1) child);
+      Hashtbl.replace sth li (aux (idx+1) child arr);
       STC(Some time, sl, n+s.n_samples, sth)
   in
-  aux 0 t
+  match bt with
+  | None ->
+      let (STC (_, sl, n, sth)) = t in
+      STC(None, sl, n+s.n_samples, sth)
+  | Some slots -> aux 0 t slots
 
 type sortedSampleTree =
-    SSTC of time option * int array * int * (raw_backtrace_slot * sortedSampleTree) list
+    SSTC of time option * int array * int * (backtrace_slot * sortedSampleTree) list
 
 let acc_si si children =
   let acc = Array.make 3 0 in
@@ -73,9 +77,9 @@ let rec sort_sampleTree (t:sampleTree) : sortedSampleTree =
 
 
 let dump_SST data =
-  let sampling_rate, data = Marshal.from_bytes data 0 in
+  let sampling_rate, datas = Marshal.from_bytes data 0 in
   (sampling_rate,
-   List.fold_left add_sampleTree (STC (None, [], 0, Hashtbl.create 3)) data
+   List.fold_left add_sampleTree (STC (None, [], 0, Hashtbl.create 3)) datas
    |> sort_sampleTree)
 
 let min_samples = ref 0
@@ -83,7 +87,7 @@ let min_samples = ref 0
 let of_hex data =
   let r = ref 0 in
   for i = 0 to pred (Bytes.length data) do
-    r := !r lsr 4 ;
+    r := !r lsl 4 ;
     match Bytes.get data i with
     | '0'..'9' as n -> r := !r + (int_of_char n - 0x30)
     | 'A'..'F' as n -> r := !r + (int_of_char n - 0x37)
@@ -145,7 +149,7 @@ let sturgeon_dump k =
             Printf.sprintf "%i, %i, %0.1f" min max (float sum /. float count)
       in
       let node = Widget.Tree.add ?children root in
-      begin match Printexc.Slot.location (convert_raw_backtrace_slot slot) with
+      begin match Printexc.Slot.location slot with
       | Some { filename; line_number; start_char; end_char } ->
         Cursor.printf node "%11.2f MB | %s | %s:%d %d-%d"
           (float n /. sampling_rate *. float Sys.word_size /. 8e6)

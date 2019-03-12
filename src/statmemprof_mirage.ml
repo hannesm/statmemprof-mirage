@@ -79,7 +79,9 @@ let dump = no_sampling @@ with_lock samples_lock @@ fun () ->
     if i >= sz then acc
     else match Ephemeron.K1.get_data s.(i) with
       | None -> aux acc (i+1)
-      | Some s -> aux (s :: acc) (i+1)
+      | Some (counter, info) ->
+          let add_backtrace i = i, Printexc.backtrace_slots i.Memprof.callstack in
+          aux ((counter, add_backtrace info) :: acc) (i+1)
   in
   aux [] 0
 
@@ -87,5 +89,5 @@ let serve () =
   Gc.full_major ();
   let data = (!sample_rate, dump ()) in
   let bytes = Marshal.to_bytes data [] in
-  let len =  Printf.sprintf "%08X" (Bytes.length bytes) in
+  let len = Printf.sprintf "%08X" (Bytes.length bytes) in
   Bytes.(cat (unsafe_of_string len) bytes)
