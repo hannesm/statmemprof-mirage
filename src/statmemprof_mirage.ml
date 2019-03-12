@@ -75,6 +75,7 @@ let reset = no_sampling @@ with_lock samples_lock @@ fun () ->
 
 let dump = no_sampling @@ with_lock samples_lock @@ fun () ->
   let s, sz = !samples, !n_samples in
+  Printf.printf "dump: n_samples %d samples len %d\n%!" !n_samples (Array.length !samples) ;
   let rec aux acc i =
     if i >= sz then acc
     else match Ephemeron.K1.get_data s.(i) with
