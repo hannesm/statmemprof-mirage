@@ -51,7 +51,6 @@ let push e =
 (* Our callback. *)
 
 let callback : (int * sample_info) Memprof.callback = fun info ->
-  Printf.printf "callback called, disabled %b\n%!" !disabled ;
   if !disabled then None
   else
     let ephe = Ephemeron.K1.create () in
