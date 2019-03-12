@@ -80,8 +80,11 @@ let dump = no_sampling @@ with_lock samples_lock @@ fun () ->
     else match Ephemeron.K1.get_data s.(i) with
       | None -> aux acc (i+1)
       | Some (counter, info) ->
-          let add_backtrace i = i, Printexc.backtrace_slots i.Memprof.callstack in
-          aux ((counter, add_backtrace info) :: acc) (i+1)
+          let bt = Printexc.backtrace_slots info.Memprof.callstack in
+          (match bt with
+          | None -> Printf.printf "no bt\n%!" ;
+          | Some arr -> Printf.printf "slots %d\n%!" (Array.length arr)) ;
+          aux ((counter, (info, bt)) :: acc) (i+1)
   in
   aux [] 0
 
