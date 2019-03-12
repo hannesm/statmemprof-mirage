@@ -86,7 +86,7 @@ let dump = no_sampling @@ with_lock samples_lock @@ fun () ->
   aux [] 0
 
 let serve () =
-  Gc.full_major ();
+  (* Gc.full_major (); *)
   let data = (!sample_rate, dump ()) in
   let bytes = Marshal.to_bytes data [] in
   let len = Printf.sprintf "%08X" (Bytes.length bytes) in

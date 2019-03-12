@@ -16,6 +16,7 @@ type sampleTree =
 
 let add_sampleTree (t:sampleTree) ((s_time, (s, bt)):(int * (Memprof.sample_info * Printexc.backtrace_slot array option))) : sampleTree =
   let rec aux idx (STC (time, sl, n, sth)) arr =
+    Printf.printf "aux with idx %d\n%!" idx ;
     let time =
       match time with
       | None ->
@@ -29,18 +30,31 @@ let add_sampleTree (t:sampleTree) ((s_time, (s, bt)):(int * (Memprof.sample_info
             count = time.count + 1;
             sum = time.sum + s_time }
     in
-    if idx >= Printexc.raw_backtrace_length s.callstack then
+    Printf.printf "here\n%!";
+    if idx >= Printexc.raw_backtrace_length s.callstack then begin
+    Printf.printf "in consequence\n%!";
       STC(Some time, s::sl, n+s.n_samples, sth)
-    else
-      let li = Array.get arr idx in
+    end else begin
+    Printf.printf "in alternative idx %d array length %d\n%!" idx (Array.length arr);
+    match Array.get arr idx with
+    | exception _ ->
+        Printf.printf "slot not found in array at idx %d\n%!" idx;
+        STC(Some time, s::sl, n+s.n_samples, sth)
+    | li ->
+        Printf.printf "found slot in array at idx %d\n%!" idx;
       let child =
         try Hashtbl.find sth li
         with Not_found -> STC (None, [], 0, Hashtbl.create 3)
       in
+        Printf.printf "found child for %d\n%!" idx;
       Hashtbl.replace sth li (aux (idx+1) child arr);
-      STC(Some time, sl, n+s.n_samples, sth)
+      Printf.printf "replaced in hashtbl\n%!";
+      let r = STC(Some time, sl, n+s.n_samples, sth) in
+      Printf.printf "finished alternative\n%!";
+      r
+  end
   in
-  match bt with
+  let r = match bt with
   | None ->
       Printf.printf "no backtrace slots :/\n%!" ;
       let (STC (_, sl, n, sth)) = t in
@@ -48,6 +62,9 @@ let add_sampleTree (t:sampleTree) ((s_time, (s, bt)):(int * (Memprof.sample_info
   | Some slots ->
       Printf.printf "some backtrace slots %d\n%!" (Array.length slots);
       aux 0 t slots
+  in
+  Printf.printf "finished add_sampletree\n%!" ;
+  r
 
 type sortedSampleTree =
     SSTC of time option * int array * int * (backtrace_slot * sortedSampleTree) list
@@ -72,6 +89,7 @@ let acc_si si children =
 
 let rec sort_sampleTree (t:sampleTree) : sortedSampleTree =
   let STC (time, sl, n, sth) = t in
+  Printf.printf "sort sample tree with hashtbl %d\n%!" (Hashtbl.length sth) ;
   let children =
     List.sort (fun (_, SSTC (_, _, n1, _)) (_, SSTC (_, _, n2, _)) -> n2 - n1)
       (Hashtbl.fold (fun li st lst -> (li, sort_sampleTree st)::lst) sth [])
@@ -81,6 +99,7 @@ let rec sort_sampleTree (t:sampleTree) : sortedSampleTree =
 
 let dump_SST data =
   let sampling_rate, datas = Marshal.from_bytes data 0 in
+  Printf.printf "marshaled from bytes\n%!" ;
   (sampling_rate,
    List.fold_left add_sampleTree (STC (None, [], 0, Hashtbl.create 3)) datas
    |> sort_sampleTree)
@@ -100,24 +119,32 @@ let of_hex data =
   !r
 
 let read_network () =
-  Printf.printf "reading network\n%!" ;
+  (* Printf.printf "reading network\n%!" ; *)
   let c = Unix.(socket PF_INET SOCK_STREAM 0) in
-  Unix.(connect c (ADDR_INET (inet_addr_of_string "127.0.0.1", 9999))) ;
+  Unix.(connect c (ADDR_INET (inet_addr_of_string "10.0.42.5", 9999))) ;
   let msg = Bytes.unsafe_of_string "00000004dump" in
   let r = Unix.send c msg 0 (Bytes.length msg) [] in
-  Printf.printf "sent request\n%!" ;
+  (* Printf.printf "sent request\n%!" ; *)
   assert (Bytes.length msg = r) ;
   let recv_len = Bytes.create 8 in
   let l = Unix.recv c recv_len 0 8 [] in
   assert (Bytes.length recv_len = l) ;
   let size = of_hex recv_len in
-  Printf.printf "reading %d bytes (%s)\n%!" size (Bytes.unsafe_to_string recv_len) ;
+  (* Printf.printf "reading %d bytes (%s)\n%!" size (Bytes.unsafe_to_string recv_len) ; *)
   let buf = Bytes.create size in
-  let l = Unix.recv c buf 0 size [] in
-  Printf.printf "read %d\n%!" l;
-  assert (size = l) ;
+  let rec recv off =
+    (* Printf.printf "recv called with %d (size %d)\n%!" off size ; *)
+    if off = size
+    then ()
+    else begin
+      let l = Unix.recv c buf off (size - off) [] in
+      (* Printf.printf "read %d bytes (off %d, size %d)\n%!" l off size; *)
+      recv (l + off)
+    end
+  in
+  recv 0 ;
   Unix.close c ;
-  Printf.printf "closed and done\n%!" ;
+  Printf.printf "read %d bytes and done\n%!" size;
   buf
 
 let sturgeon_dump k =
@@ -140,6 +167,8 @@ let sturgeon_dump k =
     end
   in
   let rec aux sampling_rate root (slot, SSTC (time, si, n, bt)) =
+    Printf.printf "aux n %d min_smaples %d bt %d\n%!"
+      n !min_samples (List.length bt) ;
     if n >= !min_samples then (
       let children =
         if List.exists (fun (_,SSTC(_, _,n',_)) -> n' >= !min_samples) bt then
@@ -168,11 +197,15 @@ let sturgeon_dump k =
     )
   in
   let data = read_network () in
+  Printf.printf "here\n%!" ;
   let sampling_rate, SSTC (_time, si, n, bt) = dump_SST data in
+  Printf.printf "undumped AST\n%!" ;
   let root = Widget.Tree.make k in
+  Printf.printf "made tree\n%!" ;
   let node = Widget.Tree.add root ~children:(fun root' -> List.iter (aux sampling_rate root') bt) in
   Cursor.printf node "%11.2f MB total "
                 (float n /. sampling_rate *. float Sys.word_size /. 8e6);
+  Printf.printf "printed sth\n%!" ;
   print_acc node si
 
 let () =
