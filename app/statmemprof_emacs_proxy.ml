@@ -16,7 +16,7 @@ type sampleTree =
 
 let add_sampleTree (t:sampleTree) ((s_time, (s, bt)):(int * (Memprof.sample_info * Printexc.backtrace_slot array option))) : sampleTree =
   let rec aux idx (STC (time, sl, n, sth)) arr =
-    Printf.printf "aux with idx %d\n%!" idx ;
+    (* Printf.printf "aux with idx %d\n%!" idx ; *)
     let time =
       match time with
       | None ->
@@ -30,40 +30,40 @@ let add_sampleTree (t:sampleTree) ((s_time, (s, bt)):(int * (Memprof.sample_info
             count = time.count + 1;
             sum = time.sum + s_time }
     in
-    Printf.printf "here\n%!";
+    (* Printf.printf "here\n%!"; *)
     if idx >= Printexc.raw_backtrace_length s.callstack then begin
-    Printf.printf "in consequence\n%!";
+    (* Printf.printf "in consequence\n%!"; *)
       STC(Some time, s::sl, n+s.n_samples, sth)
     end else begin
-    Printf.printf "in alternative idx %d array length %d\n%!" idx (Array.length arr);
+    (* Printf.printf "in alternative idx %d array length %d\n%!" idx (Array.length arr); *)
     match Array.get arr idx with
     | exception _ ->
-        Printf.printf "slot not found in array at idx %d\n%!" idx;
+        (* Printf.printf "slot not found in array at idx %d\n%!" idx; *)
         STC(Some time, s::sl, n+s.n_samples, sth)
     | li ->
-        Printf.printf "found slot in array at idx %d\n%!" idx;
+        (* Printf.printf "found slot in array at idx %d\n%!" idx; *)
       let child =
         try Hashtbl.find sth li
         with Not_found -> STC (None, [], 0, Hashtbl.create 3)
       in
-        Printf.printf "found child for %d\n%!" idx;
+        (* Printf.printf "found child for %d\n%!" idx; *)
       Hashtbl.replace sth li (aux (idx+1) child arr);
-      Printf.printf "replaced in hashtbl\n%!";
+      (* Printf.printf "replaced in hashtbl\n%!"; *)
       let r = STC(Some time, sl, n+s.n_samples, sth) in
-      Printf.printf "finished alternative\n%!";
+      (* Printf.printf "finished alternative\n%!"; *)
       r
   end
   in
   let r = match bt with
   | None ->
-      Printf.printf "no backtrace slots :/\n%!" ;
+      (* Printf.printf "no backtrace slots :/\n%!" ; *)
       let (STC (_, sl, n, sth)) = t in
       STC(None, sl, n+s.n_samples, sth)
   | Some slots ->
-      Printf.printf "some backtrace slots %d\n%!" (Array.length slots);
+      (* Printf.printf "some backtrace slots %d\n%!" (Array.length slots); *)
       aux 0 t slots
   in
-  Printf.printf "finished add_sampletree\n%!" ;
+  (* Printf.printf "finished add_sampletree\n%!" ; *)
   r
 
 type sortedSampleTree =
@@ -89,7 +89,7 @@ let acc_si si children =
 
 let rec sort_sampleTree (t:sampleTree) : sortedSampleTree =
   let STC (time, sl, n, sth) = t in
-  Printf.printf "sort sample tree with hashtbl %d\n%!" (Hashtbl.length sth) ;
+  (* Printf.printf "sort sample tree with hashtbl %d\n%!" (Hashtbl.length sth) ; *)
   let children =
     List.sort (fun (_, SSTC (_, _, n1, _)) (_, SSTC (_, _, n2, _)) -> n2 - n1)
       (Hashtbl.fold (fun li st lst -> (li, sort_sampleTree st)::lst) sth [])
@@ -99,7 +99,7 @@ let rec sort_sampleTree (t:sampleTree) : sortedSampleTree =
 
 let dump_SST data =
   let sampling_rate, datas = Marshal.from_bytes data 0 in
-  Printf.printf "marshaled from bytes\n%!" ;
+  (* Printf.printf "marshaled from bytes\n%!" ; *)
   (sampling_rate,
    List.fold_left add_sampleTree (STC (None, [], 0, Hashtbl.create 3)) datas
    |> sort_sampleTree)
@@ -197,15 +197,15 @@ let sturgeon_dump k =
     )
   in
   let data = read_network () in
-  Printf.printf "here\n%!" ;
+  (* Printf.printf "here\n%!" ; *)
   let sampling_rate, SSTC (_time, si, n, bt) = dump_SST data in
-  Printf.printf "undumped AST\n%!" ;
+  (* Printf.printf "undumped AST\n%!" ; *)
   let root = Widget.Tree.make k in
-  Printf.printf "made tree\n%!" ;
+  (* Printf.printf "made tree\n%!" ; *)
   let node = Widget.Tree.add root ~children:(fun root' -> List.iter (aux sampling_rate root') bt) in
   Cursor.printf node "%11.2f MB total "
                 (float n /. sampling_rate *. float Sys.word_size /. 8e6);
-  Printf.printf "printed sth\n%!" ;
+  (* Printf.printf "printed sth\n%!" ; *)
   print_acc node si
 
 let () =
