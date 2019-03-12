@@ -42,9 +42,12 @@ let add_sampleTree (t:sampleTree) ((s_time, (s, bt)):(int * (Memprof.sample_info
   in
   match bt with
   | None ->
+      Printf.printf "no backtrace slots :/\n%!" ;
       let (STC (_, sl, n, sth)) = t in
       STC(None, sl, n+s.n_samples, sth)
-  | Some slots -> aux 0 t slots
+  | Some slots ->
+      Printf.printf "some backtrace slots %d\n%!" (Array.length slots);
+      aux 0 t slots
 
 type sortedSampleTree =
     SSTC of time option * int array * int * (backtrace_slot * sortedSampleTree) list
@@ -108,9 +111,10 @@ let read_network () =
   let l = Unix.recv c recv_len 0 8 [] in
   assert (Bytes.length recv_len = l) ;
   let size = of_hex recv_len in
-  Printf.printf "reading %d bytes\n%!" size ;
+  Printf.printf "reading %d bytes (%s)\n%!" size (Bytes.unsafe_to_string recv_len) ;
   let buf = Bytes.create size in
   let l = Unix.recv c buf 0 size [] in
+  Printf.printf "read %d\n%!" l;
   assert (size = l) ;
   Unix.close c ;
   Printf.printf "closed and done\n%!" ;

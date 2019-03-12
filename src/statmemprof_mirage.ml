@@ -90,4 +90,5 @@ let serve () =
   let data = (!sample_rate, dump ()) in
   let bytes = Marshal.to_bytes data [] in
   let len = Printf.sprintf "%08X" (Bytes.length bytes) in
+  Printf.printf "serving %d bytes (%s)\n%!" (Bytes.length bytes) len ;
   Bytes.(cat (unsafe_of_string len) bytes)
