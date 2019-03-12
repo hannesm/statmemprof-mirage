@@ -5,51 +5,23 @@
 
 open Memprof
 
-(* Helper function for mutex with correct handling of exceptions. *)
-
-let with_lock m f x =
-  Mutex.lock m;
-  match f x with
-  | exception e -> Mutex.unlock m; raise e
-  | y -> Mutex.unlock m; y
-
-(* Sampling is deactivated for these threads. *)
-
-module ISet = Set.Make (
-  struct
-    type t = int
-    let compare : int -> int -> int = fun x y -> Pervasives.compare x y
-  end)
-
-let disabled_threads_ids = ref ISet.empty
-let disabled_threads_mutex = Mutex.create ()
-let add_disabled_thread = with_lock disabled_threads_mutex @@ fun thread ->
-  disabled_threads_ids := ISet.add (Thread.id thread) !disabled_threads_ids
-let remove_disabled_thread = with_lock disabled_threads_mutex @@ fun thread ->
-  disabled_threads_ids := ISet.remove (Thread.id thread) !disabled_threads_ids
-let is_disabled_thread thread =
-  (* Reading from the reference is atomic, so no need to take the lock
-     here. *)
-  ISet.mem (Thread.id thread) !disabled_threads_ids
-
-let no_sampling f x =
-  let th = Thread.self () in
-  if is_disabled_thread th then f x
-  else begin
-    add_disabled_thread th;
-    match f x with
-    | exception e -> remove_disabled_thread th; raise e
-    | y -> remove_disabled_thread th; y
-    end
-
 (* Data structures for sampled blocks *)
+
+let with_lock _lock f x = f x
 
 let min_buf_size = 1024
 let empty_ephe = Ephemeron.K1.create ()
 let samples : _ array ref = ref (Array.make min_buf_size empty_ephe)
 let n_samples = ref 0
-let samples_lock = Mutex.create ()
+let samples_lock = ()
 let counter = ref 0
+let disabled = ref false
+
+let no_sampling f x =
+  disabled := true ;
+  match f x with
+  | exception e -> disabled := false; raise e
+  | y -> disabled := false ; y
 
 (* Data structure management functions. *)
 
@@ -79,7 +51,7 @@ let push e =
 (* Our callback. *)
 
 let callback : (int * sample_info) Memprof.callback = fun info ->
-  if is_disabled_thread (Thread.self ()) then None
+  if !disabled then None
   else
     let ephe = Ephemeron.K1.create () in
     Ephemeron.K1.set_data ephe (!counter, info);
@@ -89,9 +61,12 @@ let callback : (int * sample_info) Memprof.callback = fun info ->
 (* Control functions *)
 
 let started = ref false
-let start sampling_rate callstack_size min_samples_print =
+let sample_rate = ref 0.
+let start sampling_rate callstack_size _min_samples_print =
   if !started then failwith "Already started";
   started := true;
+  Printf.printf "started statmemprof\n%!" ;
+  sample_rate := sampling_rate ;
   Memprof.start { sampling_rate; callstack_size; callback }
 
 let reset = no_sampling @@ with_lock samples_lock @@ fun () ->
@@ -107,3 +82,10 @@ let dump = no_sampling @@ with_lock samples_lock @@ fun () ->
       | Some s -> aux (s :: acc) (i+1)
   in
   aux [] 0
+
+let serve () =
+  Gc.full_major ();
+  let data = (!sample_rate, dump ()) in
+  let bytes = Marshal.to_bytes data [] in
+  let len =  Printf.sprintf "%08X" (Bytes.length bytes) in
+  Bytes.(cat (unsafe_of_string len) bytes)

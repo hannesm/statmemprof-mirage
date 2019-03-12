@@ -3,16 +3,6 @@
    license.
   ---------------------------------------------------------------------------*)
 
-(** After a call to this functions, blocks allocated by the given
-    thread will no longer be sampled. *)
-val add_disabled_thread : Thread.t -> unit
-
-(** Removing a thread from the disabled set. *)
-val remove_disabled_thread : Thread.t -> unit
-
-(** Is this thread disabled for sampling? *)
-val is_disabled_thread : Thread.t -> bool
-
 (** [no_sampling f x] executes [f x] by temporarilly disabling
     sampling for the current thread. If an exception occurs, sampling
     is re-enabled. *)
@@ -36,3 +26,5 @@ val dump : unit -> (int * Memprof.sample_info) list
     the location of an allocation is not displayed.
  *)
 val start : float -> int -> int -> unit
+
+val serve : unit -> bytes

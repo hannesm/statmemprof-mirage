@@ -1,0 +1,4 @@
+(executable
+ (name statmemprof_emacs_proxy)
+ (public_name statmemprof-emacs-proxy)
+ (libraries inuit sturgeon.recipes_server))

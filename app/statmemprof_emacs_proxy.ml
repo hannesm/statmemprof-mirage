@@ -71,15 +71,48 @@ let rec sort_sampleTree (t:sampleTree) : sortedSampleTree =
   in
   SSTC (time, acc_si sl children, n, children)
 
-let dump_SST () =
-  Gc.full_major ();
-  Statmemprof_driver.dump ()
-  |> List.fold_left add_sampleTree (STC (None, [], 0, Hashtbl.create 3))
-  |> sort_sampleTree
+
+let dump_SST data =
+  let sampling_rate, data = Marshal.from_bytes data 0 in
+  (sampling_rate,
+   List.fold_left add_sampleTree (STC (None, [], 0, Hashtbl.create 3)) data
+   |> sort_sampleTree)
 
 let min_samples = ref 0
 
-let sturgeon_dump sampling_rate k =
+let of_hex data =
+  let r = ref 0 in
+  for i = 0 to pred (Bytes.length data) do
+    r := !r lsr 4 ;
+    match Bytes.get data i with
+    | '0'..'9' as n -> r := !r + (int_of_char n - 0x30)
+    | 'A'..'F' as n -> r := !r + (int_of_char n - 0x37)
+    | 'a'..'f' as n -> r := !r + (int_of_char n - 0x57)
+    | _ -> assert false
+  done ;
+  !r
+
+let read_network () =
+  Printf.printf "reading network\n%!" ;
+  let c = Unix.(socket PF_INET SOCK_STREAM 0) in
+  Unix.(connect c (ADDR_INET (inet_addr_of_string "127.0.0.1", 9999))) ;
+  let msg = Bytes.unsafe_of_string "00000004dump" in
+  let r = Unix.send c msg 0 (Bytes.length msg) [] in
+  Printf.printf "sent request\n%!" ;
+  assert (Bytes.length msg = r) ;
+  let recv_len = Bytes.create 8 in
+  let l = Unix.recv c recv_len 0 8 [] in
+  assert (Bytes.length recv_len = l) ;
+  let size = of_hex recv_len in
+  Printf.printf "reading %d bytes\n%!" size ;
+  let buf = Bytes.create size in
+  let l = Unix.recv c buf 0 size [] in
+  assert (size = l) ;
+  Unix.close c ;
+  Printf.printf "closed and done\n%!" ;
+  buf
+
+let sturgeon_dump k =
   let print_acc k acc =
     let n = acc.(0) + acc.(1) + acc.(2) in
     let percent x = float x /. float n *. 100.0 in
@@ -98,11 +131,11 @@ let sturgeon_dump sampling_rate k =
       Cursor.printf k ")"
     end
   in
-  let rec aux root (slot, SSTC (time, si, n, bt)) =
+  let rec aux sampling_rate root (slot, SSTC (time, si, n, bt)) =
     if n >= !min_samples then (
       let children =
         if List.exists (fun (_,SSTC(_, _,n',_)) -> n' >= !min_samples) bt then
-          Some (fun root' -> List.iter (aux root') bt)
+          Some (fun root' -> List.iter (aux sampling_rate root') bt)
         else None
       in
       let mean =
@@ -126,40 +159,27 @@ let sturgeon_dump sampling_rate k =
       print_acc node si
     )
   in
-  let (SSTC (time, si, n, bt)) = dump_SST () in
+  let data = read_network () in
+  let sampling_rate, SSTC (_time, si, n, bt) = dump_SST data in
   let root = Widget.Tree.make k in
-  let node = Widget.Tree.add root ~children:(fun root' -> List.iter (aux root') bt) in
+  let node = Widget.Tree.add root ~children:(fun root' -> List.iter (aux sampling_rate root') bt) in
   Cursor.printf node "%11.2f MB total "
                 (float n /. sampling_rate *. float Sys.word_size /. 8e6);
   print_acc node si
 
-let started = ref false
-let start sampling_rate callstack_size min_samples_print =
-  Statmemprof_driver.start sampling_rate callstack_size min_samples_print;
-  min_samples := min_samples_print;
+let () =
+  (* let start sampling_rate callstack_size min_samples_print = *)
+  min_samples := 5 (* min_samples_print *) ;
   let name = Filename.basename Sys.executable_name in
   let server =
-    Sturgeon_recipes_server.text_server (name ^ "memprof")
+    Sturgeon_recipes_server.text_server name
     @@ fun ~args:_ shell ->
     let cursor = Sturgeon_stui.create_cursor shell ~name in
     let menu = Cursor.sub cursor in
     Cursor.text cursor "\n";
     let body = Cursor.sub cursor in
     Cursor.link menu "[Refresh]"
-      (fun _ -> Cursor.clear body; sturgeon_dump sampling_rate body);
-    sturgeon_dump sampling_rate body
+      (fun _ -> Cursor.clear body; sturgeon_dump body);
+    sturgeon_dump body
   in
-  ignore (Thread.create (fun () ->
-              Statmemprof_driver.add_disabled_thread (Thread.self ());
-              Sturgeon_recipes_server.main_loop server) ());
-
-  (* HACK : when the worker thread computes, it does not give back the
-    control to the sturgeon thread easily. As a result, the sturgeon
-    interface is not responsive.
-
-    We solve this issue by periodically suspending the worker thread
-    for a very short time. *)
-  let preempt signal = Thread.delay 1e-6 in
-  Sys.set_signal Sys.sigvtalrm (Sys.Signal_handle preempt);
-  ignore (Unix.setitimer Unix.ITIMER_VIRTUAL
-             { Unix.it_interval = 1e-2; Unix.it_value = 1e-2 })
+  Sturgeon_recipes_server.main_loop server

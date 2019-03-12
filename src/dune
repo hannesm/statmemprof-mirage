@@ -1,6 +1,5 @@
 (library
- (name statmemprof_emacs)
- (public_name statmemprof-emacs)
- (synopsis "Emacs client for statistical memory profiler")
- (wrapped false)
- (libraries inuit sturgeon.recipes_server))
+ (name statmemprof_mirage)
+ (public_name statmemprof-mirage)
+ (synopsis "Mirage client for statistical memory profiler")
+ (wrapped false))

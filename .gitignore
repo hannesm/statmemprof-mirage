@@ -5,4 +5,4 @@ tmp
 \#*#
 *.install
 *.native
-*.byte
+*.byte.merlin
