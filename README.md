@@ -34,11 +34,11 @@ ocaml-freestanding is required. For compiling statmemprof-mirage, a
 
 Then, add the custom opam-repository:
 
-   opam repo add statmemprof-mirage https://github.com/hannesm/statmemprof-repo
+`opam repo add statmemprof-mirage https://github.com/hannesm/statmemprof-repo`
 
 and install statmemprof-mirage by executing:
 
-   opam install statmemprof-mirage
+`opam install statmemprof-mirage`
 
 ## Usage
 
@@ -46,7 +46,7 @@ In the OCaml program you need to profile, you can start the profiling
 by executing the following instruction (see the documentation in
 statmenprof_emacs.mli for more details):
 
-   Statmemprof_mirage.start 1E-4 30 5
+`Statmemprof_mirage.start 1E-4 30 5`
 
 Then, in emacs, load the file sturgeon.el (coming with you Sturgeon
 installation), and type M-x sturgeon-connect.
