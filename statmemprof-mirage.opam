@@ -1,30 +1,36 @@
-opam-version: "1.2"
+opam-version: "2.0"
 maintainer: "Hannes Mehnert"
 authors: [
   "Hannes Mehnert <hannes@mehnert.org>"
   "Jacques-Henri Jourdan <jacques-henri.jourdan@normalesup.org>"
   "Frédéric Bour <frederic.bour@lakaban.net>"
 ]
+license: "MIT"
 homepage: "https://github.com/hannesm/statmemprof-mirage"
 doc: "https://hannesm.github.io/statmemprof-mirage/doc"
-license: "MIT"
-dev-repo: "https://github.com/hannesm/statmemprof-mirage.git"
 bug-reports: "https://github.com/hannesm/statmemprof-mirage/issues"
-tags: []
-available: [ compiler = "4.03.0+statistical-memprof"
-           | compiler = "4.04.2+statistical-memprof"
-           | compiler = "4.05.0+statistical-memprof"
-           | compiler = "4.06.0+statistical-memprof"
-           | compiler = "4.06.1+statistical-memprof"
-           | compiler = "4.07.1+statistical-memprof" ]
-depends:
-[
+depends: [
+  "ocaml"
+  "ocaml-variants"
+    {= "4.03.0+statistical-memprof" | = "4.04.2+statistical-memprof" |
+     = "4.05.0+statistical-memprof" |
+     = "4.06.0+statistical-memprof" |
+     = "4.06.1+statistical-memprof" |
+     = "4.07.1+statistical-memprof"}
   "dune" {build & >= "1.0"}
-  "sturgeon" { >= "0.3" }
-  "inuit" { >= "0.3" }
+  "sturgeon" {>= "0.3"}
+  "inuit" {>= "0.3"}
 ]
-depopts: []
 build: [
   ["dune" "subst"] {pinned}
   ["dune" "build" "-p" name "-j" jobs]
 ]
+dev-repo: "git+https://github.com/hannesm/statmemprof-mirage.git"
+synopsis: "Statistical memory profiling support for MirageOS and emacs"
+description: """
+Statmemprof-mirage consists of two parts: the first part is the
+Statmemprof_mirage module, to be used in a unikernel, the second part is the
+binary `statmemprof_emacs_proxy` to be run in the host system, which is a
+Sturgeon/emacs front-end of the statmemprof statistical memory profiler for
+OCaml that receives its data via TCP to the unikernel.
+"""

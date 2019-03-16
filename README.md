@@ -28,14 +28,17 @@ Homepage: https://github.com/hannesm/statmemprof-mirage
 
 ## Installation
 
-statmemprof-mirage can be installed with `opam`, when one of the
-xxxx-statistical-memprof OCaml switches is installed. These switches
-are available on opam. Then you can use the following command:
+For using statmemprof-mirage with Solo5 unikernels, an instrumented
+ocaml-freestanding is required. For compiling statmemprof-mirage, a
+4.07.1+statistical-memprof switch is required.
 
-    opam install statmemprof-mirage
+Then, add the custom opam-repository:
 
-If you don't use `opam` consult the [`opam`](opam) file for build
-instructions.
+   opam repo add statmemprof-mirage https://github.com/hannesm/statmemprof-repo
+
+and install statmemprof-mirage by executing:
+
+   opam install statmemprof-mirage
 
 ## Usage
 
