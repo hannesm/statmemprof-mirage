@@ -1,12 +1,15 @@
 opam-version: "1.2"
-maintainer: "Jacques-Henri Jourdan <jacques-henri.jourdan@normalesup.org>"
-authors: ["Jacques-Henri Jourdan <jacques-henri.jourdan@normalesup.org>"
-          "Frédéric Bour <frederic.bour@lakaban.net>"]
-homepage: "https://github.com/jhjourdan/statmemprof-emacs"
-doc: "https://jhjourdan.mketjh.fr//statmemprof-emacs/doc"
+maintainer: "Hannes Mehnert"
+authors: [
+  "Hannes Mehnert <hannes@mehnert.org>"
+  "Jacques-Henri Jourdan <jacques-henri.jourdan@normalesup.org>"
+  "Frédéric Bour <frederic.bour@lakaban.net>"
+]
+homepage: "https://github.com/hannesm/statmemprof-mirage"
+doc: "https://hannesm.github.io/statmemprof-mirage/doc"
 license: "MIT"
-dev-repo: "https://github.com/jhjourdan/statmemprof-emacs.git"
-bug-reports: "https://github.com/jhjourdan/statmemprof-emacs/issues"
+dev-repo: "https://github.com/hannesm/statmemprof-mirage.git"
+bug-reports: "https://github.com/hannesm/statmemprof-mirage/issues"
 tags: []
 available: [ compiler = "4.03.0+statistical-memprof"
            | compiler = "4.04.2+statistical-memprof"
