@@ -2,7 +2,7 @@
 
 %%VERSION%%
 
-statmemprof-mirage consists of two parts: the first is the Statmemprof_mirage module, to be used in
+statmemprof-mirage consists of two parts: the first part is the Statmemprof_mirage module, to be used in
 a unikernel (NB: this should be done either in a secure environment, or authentication and encryption should be added):
 ```OCaml
   let memprof flow =
